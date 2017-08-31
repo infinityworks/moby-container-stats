@@ -6,12 +6,12 @@ import (
 
 	"github.com/fatih/structs"
 	"github.com/infinityworks/go-common/logger"
-	"github.com/infinityworks/simple-container-stats/config"
+	"github.com/infinityworks/moby-container-stats/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	im "github.com/infinityworks/go-common/metrics"
-	cm "github.com/infinityworks/simple-container-stats/metrics"
+	cm "github.com/infinityworks/moby-container-stats/metrics"
 )
 
 var (

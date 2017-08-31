@@ -13,13 +13,11 @@ RUN go get \
 
 FROM alpine:3.6
 
-RUN apk --update add ca-certificates \
-     && addgroup exporter \
-     && adduser -S -G exporter exporter
-USER exporter
+RUN apk --update add ca-certificates 
+
 COPY --from=build /bin/main /bin/main
 
 
 ENV LISTEN_PORT=9244
 EXPOSE 9244
-ENTRYPOINT [ "/bin/main" 
+ENTRYPOINT [ "/bin/main" ]
