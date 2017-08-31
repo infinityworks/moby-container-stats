@@ -4,17 +4,26 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // ContainerStats is used to track the core JSON response from the stats API
 type ContainerStats struct {
-	NetIntefaces map[string]interface{} `json:"networks"`
-	MemoryStats  struct {
+	NetIntefaces map[string]struct {
+		RxBytes   int `json:"rx_bytes"`
+		RxDropped int `json:"rx_dropped"`
+		RxErrors  int `json:"rx_errors"`
+		RxPackets int `json:"rx_packets"`
+		TxBytes   int `json:"tx_bytes"`
+		TxDropped int `json:"tx_dropped"`
+		TxErrors  int `json:"tx_errors"`
+		TxPackets int `json:"tx_packets"`
+	} `json:"networks"`
+	MemoryStats struct {
 		Usage int `json:"usage"`
 		Limit int `json:"limit"`
 	} `json:"memory_stats"`
@@ -38,43 +47,31 @@ type ContainerStats struct {
 	} `json:"precpu_stats"`
 }
 
-// NetworkStats Stores statistics for individual network interfaces
-type NetworkStats struct {
-	RxBytes   int `json:"rx_bytes"`
-	RxDropped int `json:"rx_dropped"`
-	RxErrors  int `json:"rx_errors"`
-	RxPackets int `json:"rx_packets"`
-	TxBytes   int `json:"tx_bytes"`
-	TxDropped int `json:"tx_dropped"`
-	TxErrors  int `json:"tx_errors"`
-	TxPackets int `json:"tx_packets"`
-}
-
 // ListContainers returns a list of containers on the local system
 func (e *Exporter) getStats(ch chan<- prometheus.Metric) error {
 
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		return fmt.Errorf("Error creating Docker client: %v", err)
+		return errors.Wrapf(err, "Error creating Docker client")
 	}
 
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{All: false})
 	if err != nil {
-		return fmt.Errorf("Error obtaining container listing: %v", err)
+		return errors.Wrap(err, "Error obtaining container listing")
 	}
 
 	for _, c := range containers {
 
 		stats, err := cli.ContainerStats(context.Background(), c.ID, false)
 		if err != nil {
-			return fmt.Errorf("Error obtaining container stats: %v", err)
+			return errors.Wrap(err, "Error obtaining container stats")
 		}
 
 		s := bufio.NewScanner(stats.Body)
 		for s.Scan() {
 			var v *ContainerStats
 			if err := json.Unmarshal(s.Bytes(), &v); err != nil {
-				fmt.Printf("AH SHIT")
+				return errors.Wrapf(err, "Could not unmarshal the response from the docker engine for container %s", c.ID)
 			}
 
 			// Set CPU metrics
@@ -85,19 +82,7 @@ func (e *Exporter) getStats(ch chan<- prometheus.Metric) error {
 			ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryUsageBytes"], prometheus.GaugeValue, float64(v.MemoryStats.Usage), c.Names[0][1:], c.ID)
 			ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryLimit"], prometheus.GaugeValue, float64(v.MemoryStats.Limit), c.Names[0][1:], c.ID)
 
-			for key, val := range v.NetIntefaces {
-
-				var net NetworkStats
-
-				bob, err := json.Marshal(val)
-				if err != nil {
-					return fmt.Errorf("Error Marshalling Network Stats response, error: %v", err)
-				}
-
-				err = json.Unmarshal([]byte(bob), &net)
-				if err != nil {
-					return fmt.Errorf("Error Umarshalling Network Stats response, error: %v", err)
-				}
+			for key, net := range v.NetIntefaces {
 
 				ch <- prometheus.MustNewConstMetric(e.containerMetrics["rxBytes"], prometheus.GaugeValue, float64(net.RxBytes), c.Names[0][1:], c.ID, key)
 				ch <- prometheus.MustNewConstMetric(e.containerMetrics["rxDropped"], prometheus.GaugeValue, float64(net.RxDropped), c.Names[0][1:], c.ID, key)
@@ -109,7 +94,7 @@ func (e *Exporter) getStats(ch chan<- prometheus.Metric) error {
 				ch <- prometheus.MustNewConstMetric(e.containerMetrics["txPackets"], prometheus.GaugeValue, float64(net.TxPackets), c.Names[0][1:], c.ID, key)
 			}
 			if s.Err() != nil {
-				return fmt.Errorf("Error handling Stats.body from Docker engine: %v", err)
+				return errors.Wrapf(err, "Error handling Stats.body from Docker engine")
 			}
 		}
 	}
