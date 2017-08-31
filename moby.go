@@ -8,11 +8,13 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
-// ContainerStats is used to track the core JSON response from the stats API
-type ContainerStats struct {
+// ContainerMetrics is used to track the core JSON response from the stats API
+type ContainerMetrics struct {
+	ID           string
+	Name         string
+	Error        error
 	NetIntefaces map[string]struct {
 		RxBytes   int `json:"rx_bytes"`
 		RxDropped int `json:"rx_dropped"`
@@ -47,56 +49,83 @@ type ContainerStats struct {
 	} `json:"precpu_stats"`
 }
 
-// ListContainers returns a list of containers on the local system
-func (e *Exporter) getStats(ch chan<- prometheus.Metric) error {
+func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, error) {
 
+	// Create new docker API client for passed down to the async requests
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		return errors.Wrapf(err, "Error creating Docker client")
+		return nil, errors.Wrapf(err, "Error creating Docker client")
 	}
 
+	// Obtain a list of running containers only
+	// Docker stats API won't return stats for containers not in the running state
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{All: false})
 	if err != nil {
-		return errors.Wrap(err, "Error obtaining container listing")
+		return nil, errors.Wrap(err, "Error obtaining container listing")
 	}
 
+	// Channels used to enable concurrent requests
+	ch := make(chan *ContainerMetrics, len(containers))
+	ContainerMetrics := []*ContainerMetrics{}
+
+	// range through the returned containers to obtain the statistics
+	// Done due to there not yet being a '--all' option for the cli.ContainerMetrics function in the engine
 	for _, c := range containers {
 
-		stats, err := cli.ContainerStats(context.Background(), c.ID, false)
-		if err != nil {
-			return errors.Wrap(err, "Error obtaining container stats")
-		}
+		go func(cli *client.Client, id, name string) {
 
-		s := bufio.NewScanner(stats.Body)
-		for s.Scan() {
-			var v *ContainerStats
-			if err := json.Unmarshal(s.Bytes(), &v); err != nil {
-				return errors.Wrapf(err, "Could not unmarshal the response from the docker engine for container %s", c.ID)
+			err := retrieveContainerMetrics(*cli, id, name, ch)
+			if err != nil {
+				errors.Wrapf(err, "Error obtaining stats")
 			}
 
-			// Set CPU metrics
-			ch <- prometheus.MustNewConstMetric(e.containerMetrics["cpuUsagePercent"], prometheus.GaugeValue, calcCPUPercent(v), c.Names[0][1:], c.ID)
+		}(cli, c.Names[0][1:], c.ID)
 
-			// Set Memory metrics
-			ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryUsagePercent"], prometheus.GaugeValue, calcMemoryPercent(v), c.Names[0][1:], c.ID)
-			ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryUsageBytes"], prometheus.GaugeValue, float64(v.MemoryStats.Usage), c.Names[0][1:], c.ID)
-			ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryLimit"], prometheus.GaugeValue, float64(v.MemoryStats.Limit), c.Names[0][1:], c.ID)
+	}
 
-			for key, net := range v.NetIntefaces {
+	for {
+		select {
+		case r := <-ch:
 
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["rxBytes"], prometheus.GaugeValue, float64(net.RxBytes), c.Names[0][1:], c.ID, key)
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["rxDropped"], prometheus.GaugeValue, float64(net.RxDropped), c.Names[0][1:], c.ID, key)
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["rxErrors"], prometheus.GaugeValue, float64(net.RxErrors), c.Names[0][1:], c.ID, key)
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["rxPackets"], prometheus.GaugeValue, float64(net.RxPackets), c.Names[0][1:], c.ID, key)
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["txBytes"], prometheus.GaugeValue, float64(net.TxBytes), c.Names[0][1:], c.ID, key)
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["txDropped"], prometheus.GaugeValue, float64(net.TxDropped), c.Names[0][1:], c.ID, key)
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["txErrors"], prometheus.GaugeValue, float64(net.TxErrors), c.Names[0][1:], c.ID, key)
-				ch <- prometheus.MustNewConstMetric(e.containerMetrics["txPackets"], prometheus.GaugeValue, float64(net.TxPackets), c.Names[0][1:], c.ID, key)
+			if r.Error != nil {
+				errors.Wrapf(err, "Error processing stats")
+				break
 			}
-			if s.Err() != nil {
-				return errors.Wrapf(err, "Error handling Stats.body from Docker engine")
+
+			ContainerMetrics = append(ContainerMetrics, r)
+
+			if len(ContainerMetrics) == len(containers) {
+				return ContainerMetrics, nil
 			}
 		}
+
+	}
+
+}
+
+func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *ContainerMetrics) error {
+
+	stats, err := cli.ContainerStats(context.Background(), id, false)
+	if err != nil {
+		errors.Wrapf(err, "Error obtaining container stats for %s, error: %v", id, err)
+	}
+
+	s := bufio.NewScanner(stats.Body)
+
+	for s.Scan() {
+
+		var c *ContainerMetrics
+
+		if err := json.Unmarshal(s.Bytes(), &c); err != nil {
+			errors.Wrapf(err, "Could not unmarshal the response from the docker engine for container %s", id)
+		}
+		c.ID = id
+		c.Name = name
+		ch <- c
+	}
+
+	if s.Err() != nil {
+		return errors.Wrapf(err, "Error handling Stats.body from Docker engine")
 	}
 
 	return nil

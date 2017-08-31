@@ -2,11 +2,11 @@
 
 # Moby Container Stats
 
-Exposes basic metrics for your containers directly from the moby stats API to a prometheus compatible endpoint. Doing a similar job to the popular cAdvisor application, this is a much more lightweight and simplified design for just the key metrics that people require. It requires less resources to run as an exporter on your hosts, it's also less expensive to store in prometheus.
+Exposes basic metrics for your containers directly from the moby stats API to a prometheus compatible endpoint. Doing a similar job to the popular cAdvisor application, this is a much more lightweight and simplified design for just the key metrics that people require. It requires less resources to run as an exporter on your hosts, it's also less expensive to store in prometheus. Metrics are obtained through async calls to the moby stats API over the Docker socket. Scrapes can sometimes take up to 2 seconds, this is due to the inherent way moby calculates it's CPU usage at present. Ideally, the work Docker are doing towards native prometheus metrics for containers will render this exporter obsolete.
 
 ## Configuration
 
-This exporter is setup to take input from environment variables:
+This exporter is setup to take input from environment variables, please make sure you also map in the docker socket to the container, details below.
 
 ### Required
 None..
@@ -21,13 +21,13 @@ None..
 
 Run manually from Docker Hub:
 ```
-docker run -d --restart=always -p 9244:9244 infinityworks/moby-container-stats
+docker run -d --restart=unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -p 9244:9244 infinityworks/moby-container-stats
 ```
 
 Build a docker image:
 ```
 docker build -t <image-name> .
-docker run -d --restart=always -p 9244:9244 <image-name>
+docker run -d --restart=unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -p 9244:9244 <image-name>
 ```
 
 ## Docker compose
@@ -38,6 +38,8 @@ github-exporter:
     stdin_open: true
     ports:
       - 9244:9244
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     image: infinityworks/moby-container-stats:latest
 ```
 
