@@ -1,4 +1,4 @@
-[![](https://images.microbadger.com/badges/image/infinityworks/moby-container-stats.svg)](http://microbadger.com/images/infinityworks/moby-container-stats "Get your own image badge on microbadger.com") [![](https://images.microbadger.com/badges/version/infinityworks/moby-container-stats.svg)](http://microbadger.com/images/infinityworks/moby-container-stats "Get your own version badge on microbadger.com")
+[![Go Report Card](https://goreportcard.com/badge/github.com/infinityworks/moby-container-stats)](https://goreportcard.com/report/github.com/infinityworks/moby-container-stats)[![](https://images.microbadger.com/badges/image/infinityworks/moby-container-stats.svg)](http://microbadger.com/images/infinityworks/moby-container-stats "Get your own image badge on microbadger.com") [![](https://images.microbadger.com/badges/version/infinityworks/moby-container-stats.svg)](http://microbadger.com/images/infinityworks/moby-container-stats "Get your own version badge on microbadger.com")
 
 # Moby Container Stats
 
