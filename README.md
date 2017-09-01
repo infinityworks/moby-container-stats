@@ -33,7 +33,7 @@ docker run -d --restart=unless-stopped -v /var/run/docker.sock:/var/run/docker.s
 ## Docker compose
 
 ```
-github-exporter:
+moby-container-exporter:
     tty: true
     stdin_open: true
     ports:
