@@ -1,6 +1,6 @@
 package main
 
-func calcCPUPercent(stats *ContainerStats) float64 {
+func calcCPUPercent(stats *ContainerMetrics) float64 {
 
 	var CPUPercent float64
 
@@ -14,6 +14,6 @@ func calcCPUPercent(stats *ContainerStats) float64 {
 	return CPUPercent
 }
 
-func calcMemoryPercent(stats *ContainerStats) float64 {
+func calcMemoryPercent(stats *ContainerMetrics) float64 {
 	return float64(stats.MemoryStats.Usage) * 100.0 / float64(stats.MemoryStats.Limit)
 }
