@@ -73,13 +73,12 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, error) {
 	for _, c := range containers {
 
 		go func(cli *client.Client, id, name string) {
-
 			err := retrieveContainerMetrics(*cli, id, name, ch)
 			if err != nil {
 				errors.Wrapf(err, "Error obtaining stats")
 			}
 
-		}(cli, c.Names[0][1:], c.ID)
+		}(cli, c.ID, c.Names[0][1:])
 
 	}
 
@@ -121,6 +120,7 @@ func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *Con
 		}
 		c.ID = id
 		c.Name = name
+
 		ch <- c
 	}
 
