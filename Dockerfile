@@ -1,4 +1,4 @@
-FROM golang:1.9.0-alpine as build
+FROM golang:1.9.1-alpine as build
 LABEL maintainer "Infinity Works"
 
 RUN apk --update add ca-certificates \
@@ -11,7 +11,7 @@ RUN go get \
  && go test ./... \
  && go build -o /bin/main
 
-FROM alpine:3.6
+FROM alpine:edge
 
 RUN apk --update add ca-certificates 
 
