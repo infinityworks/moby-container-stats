@@ -34,7 +34,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		e.setPrometheusMetrics(b, ch)
 	}
 
-	eLogger.Debug("Metrics successfully collected")
+	eLogger.Debug("Metric collection completed")
 
 }
 
