@@ -20,10 +20,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	eLogger.Debug("Metric collection requested")
 
 	metrics, err := e.asyncRetrieveMetrics()
-	if len(err) != 0 {
-		fmt.Println("Errors detected in collection: ")
-		for _, e := range err {
-			fmt.Println("ERROR: ", e)
+
+	for _, e := range err {
+		if e != nil {
+			fmt.Println("Error detected in metric retrieval : ", e)
 		}
 	}
 
