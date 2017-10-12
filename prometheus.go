@@ -20,14 +20,16 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	eLogger.Debug("Metric collection requested")
 
 	metrics, err := e.asyncRetrieveMetrics()
-	if len(err) != 0 {
-		fmt.Println("Errors detected in collection: ")
-		for _, e := range err {
-			fmt.Println("ERROR: ", e)
+
+	for _, e := range err {
+		if e != nil {
+			fmt.Println("Error detected in metric retrieval : ", e)
 		}
 	}
-	if err != nil {
-		fmt.Println("Error encountered", err)
+
+	if len(metrics) == 0 {
+		fmt.Println("No valid container metrics to process")
+		return
 	}
 
 	for _, b := range metrics {

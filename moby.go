@@ -75,6 +75,13 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
 	ch := make(chan *ContainerMetrics, len(containers))
 	ContainerMetrics := []*ContainerMetrics{}
 
+	// Check that there are indeed containers running we can obtain stats for
+	if len(containers) == 0 {
+		errs = append(errs, errors.Wrap(err, "No Containers returned from Docker socket"))
+		return ContainerMetrics, errs
+
+	}
+
 	// range through the returned containers to obtain the statistics
 	// Done due to there not yet being a '--all' option for the cli.ContainerMetrics function in the engine
 	for _, c := range containers {
@@ -108,12 +115,13 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
 
 func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *ContainerMetrics) {
 
-	var ce *ContainerMetrics
+	// Used to append errors to for the containerstats and scan functions
+	var cm *ContainerMetrics
 
 	stats, err := cli.ContainerStats(context.Background(), id, false)
 	if err != nil {
-		ce.Error = errors.Wrapf(err, "Error obtaining container stats for %s, error: %v", id, err)
-		ch <- ce
+		cm.Error = errors.Wrapf(err, "Error obtaining container stats for %s, error: %v", id, err)
+		ch <- cm
 		return
 	}
 
@@ -123,9 +131,15 @@ func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *Con
 
 		var c *ContainerMetrics
 
-		if err := json.Unmarshal(s.Bytes(), &c); err != nil {
+		err := json.Unmarshal(s.Bytes(), &c)
+		if err != nil {
 			c.Error = errors.Wrapf(err, "Could not unmarshal the response from the docker engine for container %s", id)
+			ch <- c
+			continue
 		}
+
+		// Set the container name and ID fields of the ContainerMetrics struct
+		// so we can correctly report on the container when looping through later
 		c.ID = id
 		c.Name = name
 
@@ -133,8 +147,8 @@ func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *Con
 	}
 
 	if s.Err() != nil {
-		ce.Error = errors.Wrapf(err, "Error handling Stats.body from Docker engine")
-		ch <- ce
+		cm.Error = errors.Wrapf(err, "Error handling Stats.body from Docker engine")
+		ch <- cm
 		return
 	}
 
