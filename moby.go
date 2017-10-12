@@ -108,12 +108,12 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
 
 func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *ContainerMetrics) {
 
-	var ce *ContainerMetrics
+	var cm *ContainerMetrics
 
 	stats, err := cli.ContainerStats(context.Background(), id, false)
 	if err != nil {
-		ce.Error = errors.Wrapf(err, "Error obtaining container stats for %s, error: %v", id, err)
-		ch <- ce
+		cm.Error = errors.Wrapf(err, "Error obtaining container stats for %s, error: %v", id, err)
+		ch <- cm
 		return
 	}
 
@@ -125,6 +125,8 @@ func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *Con
 
 		if err := json.Unmarshal(s.Bytes(), &c); err != nil {
 			c.Error = errors.Wrapf(err, "Could not unmarshal the response from the docker engine for container %s", id)
+			ch <- c
+			continue
 		}
 		c.ID = id
 		c.Name = name
@@ -133,8 +135,8 @@ func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *Con
 	}
 
 	if s.Err() != nil {
-		ce.Error = errors.Wrapf(err, "Error handling Stats.body from Docker engine")
-		ch <- ce
+		cm.Error = errors.Wrapf(err, "Error handling Stats.body from Docker engine")
+		ch <- cm
 		return
 	}
 
