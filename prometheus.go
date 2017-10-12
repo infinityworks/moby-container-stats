@@ -26,8 +26,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			fmt.Println("ERROR: ", e)
 		}
 	}
-	if err != nil {
-		fmt.Println("Error encountered", err)
+
+	if len(metrics) == 0 {
+		fmt.Println("No valid container metrics to process")
+		return
 	}
 
 	for _, b := range metrics {
