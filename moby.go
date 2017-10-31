@@ -7,14 +7,12 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/pkg/errors"
 )
 
 // ContainerMetrics is used to track the core JSON response from the stats API
 type ContainerMetrics struct {
 	ID           string
 	Name         string
-	Error        error
 	NetIntefaces map[string]struct {
 		RxBytes   int `json:"rx_bytes"`
 		RxDropped int `json:"rx_dropped"`
@@ -49,15 +47,13 @@ type ContainerMetrics struct {
 	} `json:"precpu_stats"`
 }
 
-func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
-
-	var errs []error
+func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, error) {
 
 	// Create new docker API client for passed down to the async requests
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		errs = append(errs, errors.Wrapf(err, "Error creating Docker client"))
-		return nil, errs
+		eLogger.Errorf("Error creating Docker client %v", err)
+		return nil, err
 	}
 
 	// Close the client after the execution
@@ -67,8 +63,8 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
 	// Docker stats API won't return stats for containers not in the running state
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{All: false})
 	if err != nil {
-		errs = append(errs, errors.Wrap(err, "Error obtaining container listing"))
-		return nil, errs
+		eLogger.Errorf("Error obtaining container listing: %v", err)
+		return nil, err
 	}
 
 	// Channels used to enable concurrent requests
@@ -77,8 +73,8 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
 
 	// Check that there are indeed containers running we can obtain stats for
 	if len(containers) == 0 {
-		errs = append(errs, errors.Wrap(err, "No Containers returned from Docker socket"))
-		return ContainerMetrics, errs
+		eLogger.Errorf("No Containers returnedx from Docker socket, error: %v", err)
+		return ContainerMetrics, err
 
 	}
 
@@ -97,11 +93,6 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
 		select {
 		case r := <-ch:
 
-			if r.Error != nil {
-				errs = append(errs, errors.Wrapf(err, "Error processing stats"))
-				break
-			}
-
 			ContainerMetrics = append(ContainerMetrics, r)
 
 			if len(ContainerMetrics) == len(containers) {
@@ -115,13 +106,9 @@ func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, []error) {
 
 func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *ContainerMetrics) {
 
-	// Used to append errors to for the containerstats and scan functions
-	var cm *ContainerMetrics
-
 	stats, err := cli.ContainerStats(context.Background(), id, false)
 	if err != nil {
-		cm.Error = errors.Wrapf(err, "Error obtaining container stats for %s, error: %v", id, err)
-		ch <- cm
+		eLogger.Errorf("Error obtaining container stats for %s, error: %v", id, err)
 		return
 	}
 
@@ -133,8 +120,7 @@ func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *Con
 
 		err := json.Unmarshal(s.Bytes(), &c)
 		if err != nil {
-			c.Error = errors.Wrapf(err, "Could not unmarshal the response from the docker engine for container %s", id)
-			ch <- c
+			eLogger.Errorf("Could not unmarshal the response from the docker engine for container %s. Error: %v", id, err)
 			continue
 		}
 
@@ -147,8 +133,7 @@ func retrieveContainerMetrics(cli client.Client, id, name string, ch chan<- *Con
 	}
 
 	if s.Err() != nil {
-		cm.Error = errors.Wrapf(err, "Error handling Stats.body from Docker engine")
-		ch <- cm
+		eLogger.Errorf("Error handling Stats.body from Docker engine. Error: %v", s.Err())
 		return
 	}
 

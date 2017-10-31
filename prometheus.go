@@ -1,10 +1,6 @@
 package main
 
-import (
-	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-)
+import "github.com/prometheus/client_golang/prometheus"
 
 // Describe - loops through the API metrics and passes them to prometheus.Describe
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
@@ -17,18 +13,16 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect function, called on by Prometheus Client library
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	eLogger.Debug("Metric collection requested")
+	eLogger.Info("Metric collection requested")
 
 	metrics, err := e.asyncRetrieveMetrics()
 
-	for _, e := range err {
-		if e != nil {
-			fmt.Println("Error detected in metric retrieval : ", e)
-		}
+	if err != nil {
+		eLogger.Error("Errors in collection")
 	}
 
 	if len(metrics) == 0 {
-		fmt.Println("No valid container metrics to process")
+		eLogger.Info("No valid container metrics to process")
 		return
 	}
 
@@ -36,7 +30,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		e.setPrometheusMetrics(b, ch)
 	}
 
-	eLogger.Debug("Metric collection completed")
+	eLogger.Info("Metric collection completed")
 
 }
 
@@ -50,6 +44,10 @@ func (e *Exporter) setPrometheusMetrics(stats *ContainerMetrics, ch chan<- prome
 	ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryUsagePercent"], prometheus.GaugeValue, calcMemoryPercent(stats), stats.ID, stats.Name)
 	ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryUsageBytes"], prometheus.GaugeValue, float64(stats.MemoryStats.Usage), stats.ID, stats.Name)
 	ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryLimit"], prometheus.GaugeValue, float64(stats.MemoryStats.Limit), stats.ID, stats.Name)
+
+	if len(stats.NetIntefaces) == 0 {
+		eLogger.Infof("No network interfaces detected for container %s", stats.Name)
+	}
 
 	// Network interface stats (loop through the map of returned interfaces)
 	for key, net := range stats.NetIntefaces {
