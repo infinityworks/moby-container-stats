@@ -26,6 +26,9 @@ type ContainerMetrics struct {
 	MemoryStats struct {
 		Usage int `json:"usage"`
 		Limit int `json:"limit"`
+		Stats struct {
+			Cache int `json:"cache"`
+		} `json:"stats"`
 	} `json:"memory_stats"`
 	CPUStats struct {
 		CPUUsage struct {

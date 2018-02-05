@@ -43,6 +43,7 @@ func (e *Exporter) setPrometheusMetrics(stats *ContainerMetrics, ch chan<- prome
 	// Set Memory metrics
 	ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryUsagePercent"], prometheus.GaugeValue, calcMemoryPercent(stats), stats.ID, stats.Name)
 	ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryUsageBytes"], prometheus.GaugeValue, float64(stats.MemoryStats.Usage), stats.ID, stats.Name)
+	ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryCacheBytes"], prometheus.GaugeValue, float64(stats.MemoryStats.Stats.Cache), stats.ID, stats.Name)
 	ch <- prometheus.MustNewConstMetric(e.containerMetrics["memoryLimit"], prometheus.GaugeValue, float64(stats.MemoryStats.Limit), stats.ID, stats.Name)
 
 	if len(stats.NetIntefaces) == 0 {
