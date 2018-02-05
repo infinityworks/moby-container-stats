@@ -25,6 +25,11 @@ func Return() map[string]*prometheus.Desc {
 		"Current memory usage in bytes for the specified container",
 		[]string{"container_id", "container_name"}, nil,
 	)
+	containerMetrics["memoryCacheBytes"] = prometheus.NewDesc(
+		prometheus.BuildFQName("container", "memory", "cache_bytes"),
+		"Current memory cache in bytes for the specified container",
+		[]string{"container_id", "container_name"}, nil,
+	)
 	containerMetrics["memoryLimit"] = prometheus.NewDesc(
 		prometheus.BuildFQName("container", "memory", "limit"),
 		"Memory limit as configured for the specified container",
