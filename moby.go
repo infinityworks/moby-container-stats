@@ -53,7 +53,7 @@ type ContainerMetrics struct {
 func (e *Exporter) asyncRetrieveMetrics() ([]*ContainerMetrics, error) {
 
 	// Create new docker API client for passed down to the async requests
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.WithVersion("1.40"))
 	if err != nil {
 		eLogger.Errorf("Error creating Docker client %v", err)
 		return nil, err
