@@ -8,6 +8,7 @@ import (
 	"github.com/infinityworks/go-common/logger"
 	"github.com/infinityworks/moby-container-stats/config"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 
 	im "github.com/infinityworks/go-common/metrics"
@@ -49,7 +50,7 @@ func main() {
 
 	// Setup HTTP handler
 	port := fmt.Sprintf(":%s", applicationCfg.ListenPort())
-	http.Handle(applicationCfg.MetricsPath(), prometheus.Handler())
+	http.Handle(applicationCfg.MetricsPath(), promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
 		                <head><title>Moby Container Exporter</title></head>
